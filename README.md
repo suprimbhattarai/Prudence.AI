@@ -1,5 +1,4 @@
 
-```markdown
 # Prudence AI
 
 Prudence AI is an AI-native customer-support and field-service operations platform focused first on Internet Service Providers (ISPs).
