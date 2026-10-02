@@ -2,8 +2,8 @@ from fastapi import FastAPI, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend.database import engine, get_db
-from backend.models import Base, Customer, Complaint
+from codes.database import engine, get_db
+from codes.models import Base, Customer, Complaint
 
 app = FastAPI()
 

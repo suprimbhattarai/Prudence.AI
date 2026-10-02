@@ -1,7 +1,7 @@
 from sqlalchemy import CheckConstraint, ForeignKey, SmallInteger
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from backend.models.base import Base
+from codes.models.base import Base
 
 
 class TechnicianSkill(Base):

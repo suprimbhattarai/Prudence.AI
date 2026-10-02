@@ -1,7 +1,7 @@
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from backend.models.base import Base
+from codes.models.base import Base
 
 
 class TechnicianProfile(Base):
@@ -59,4 +59,22 @@ class TechnicianProfile(Base):
         "TechnicianSkill",
         back_populates="technician",
         cascade="all, delete-orphan",
+    )
+
+    availability = relationship(
+        "TechnicianAvailability",
+        back_populates="technician",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+    shifts = relationship(
+        "TechnicianShift",
+        back_populates="technician",
+        cascade="all, delete-orphan",
+    )
+
+    assignments = relationship(
+        "TechnicianAssignment",
+        back_populates="technician",
     )
