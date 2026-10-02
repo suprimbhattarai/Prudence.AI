@@ -35,6 +35,10 @@ from codes.models.field_service.service_report import ServiceReport
 
 from codes.models.feedback.feedback import Feedback
 
+from codes.models.organizations.organization import Organization
+
+from codes.models.notifications.notification import Notification
+
 __all__ = [
     "Base",
     "User",
@@ -61,4 +65,6 @@ __all__ = [
     "ServiceVisit",
     "ServiceReport",
     "Feedback",
+    "Organization",
+    "Notification",
 ]

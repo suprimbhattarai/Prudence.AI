@@ -6,6 +6,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from codes.core.enums.user_role import UserRole
 from codes.models.base import Base
 
+from sqlalchemy import ForeignKey
+
 
 class User(Base):
     __tablename__ = "users"
@@ -32,6 +34,15 @@ class User(Base):
             name="user_role",
         ),
         nullable=False,
+    )
+
+    organization_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "organizations.id",
+            ondelete="RESTRICT",
+        ),
+        nullable=False,
+        index=True,
     )
 
     is_active: Mapped[bool] = mapped_column(
@@ -64,5 +75,16 @@ class User(Base):
         "AdminProfile",
         back_populates="user",
         uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+    organization = relationship(
+        "Organization",
+        back_populates="users",
+    )
+
+    notifications = relationship(
+        "Notification",
+        back_populates="recipient",
         cascade="all, delete-orphan",
     )
