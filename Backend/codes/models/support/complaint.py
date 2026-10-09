@@ -96,12 +96,6 @@ class Complaint(Base):
         back_populates="complaints",
     )
 
-    complaints = relationship(
-        "Complaint",
-        back_populates="customer",
-        cascade="all, delete-orphan",
-    )
-
     ticket = relationship(
         "Ticket",
         back_populates="complaint",

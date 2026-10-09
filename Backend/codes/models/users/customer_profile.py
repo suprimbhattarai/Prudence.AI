@@ -61,6 +61,12 @@ class CustomerProfile(Base):
         cascade="all, delete-orphan",
     )
 
+    complaints = relationship(
+        "Complaint",
+        back_populates="customer",
+        cascade="all, delete-orphan",
+    )
+
     appointments = relationship(
         "Appointment",
         back_populates="customer",
