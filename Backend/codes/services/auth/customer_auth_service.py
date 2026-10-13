@@ -1,21 +1,32 @@
+from uuid import uuid4
+
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from codes.core.enums.user_role import UserRole
-from codes.core.security.jwt import create_access_token
+
+from codes.core.security.jwt import (
+    create_access_token,
+    create_refresh_token,
+)
+
 from codes.core.security.password import (
     hash_password,
     verify_password,
 )
 
 from codes.repositories.auth.user_repository import UserRepository
+
 from codes.repositories.organizations.organization_repository import (
     OrganizationRepository,
 )
 
 from codes.schemas.auth.customer_login import UserLoginRequest
-from codes.schemas.auth.customer_register import UserRegisterRequest
+
+from codes.schemas.auth.customer_register import (
+    UserRegisterRequest,
+)
 
 
 class CustomerAuthService:
@@ -24,7 +35,24 @@ class CustomerAuthService:
         self.users = UserRepository(db)
         self.organizations = OrganizationRepository(db)
 
+    def _generate_unique_employee_code(self) -> str:
+        for _ in range(5):
+            employee_code = f"TECH-{uuid4().hex[:12].upper()}"
+
+            existing_technician = self.users.get_technician_by_employee_code(
+                employee_code
+            )
+
+            if existing_technician is None:
+                return employee_code
+
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to generate employee code. Please try again.",
+        )
+
     def register(self, data: UserRegisterRequest):
+        # 1. Validate organization
         organization = self.organizations.get_active_by_id(data.organization_id)
 
         if organization is None:
@@ -33,6 +61,7 @@ class CustomerAuthService:
                 detail="Selected ISP is invalid or inactive",
             )
 
+        # 2. Check whether email already exists
         existing_user = self.users.get_by_email(data.email)
 
         if existing_user is not None:
@@ -41,22 +70,21 @@ class CustomerAuthService:
                 detail="Email is already registered",
             )
 
+        # 3. Generate employee code for technicians only
+        employee_code = None
+
         if data.role == UserRole.TECHNICIAN:
-            existing_technician = self.users.get_technician_by_employee_code(
-                data.employee_code
-            )
+            employee_code = self._generate_unique_employee_code()
 
-            if existing_technician is not None:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Employee code is already registered",
-                )
-
+        # 4. Customer verified automatically
+        # Technician must be approved by an administrator
         verified = data.role == UserRole.CUSTOMER
 
+        # 5. Hash password
         hashed_password = hash_password(data.password)
 
         try:
+            # 6. Create base user
             user = self.users.create_user(
                 email=data.email,
                 hashed_password=hashed_password,
@@ -65,6 +93,7 @@ class CustomerAuthService:
                 is_verified=verified,
             )
 
+            # 7. Create role-specific profile
             if data.role == UserRole.CUSTOMER:
                 self.users.create_customer_profile(
                     user_id=user.id,
@@ -77,9 +106,10 @@ class CustomerAuthService:
                     user_id=user.id,
                     full_name=data.full_name,
                     phone=data.phone,
-                    employee_code=data.employee_code,
+                    employee_code=employee_code,
                 )
 
+            # 8. Commit transaction
             self.db.commit()
             self.db.refresh(user)
 
@@ -97,7 +127,7 @@ class CustomerAuthService:
             self.db.rollback()
             raise
 
-    def login(self, data: UserLoginRequest) -> str:
+    def login(self, data: UserLoginRequest) -> dict[str, str]:
         user = self.users.get_by_email(data.email)
 
         if user is None or not verify_password(
@@ -129,8 +159,20 @@ class CustomerAuthService:
                 detail="Organization is inactive",
             )
 
-        return create_access_token(
+        access_token = create_access_token(
             user_id=user.id,
             organization_id=user.organization_id,
             role=user.role,
         )
+
+        refresh_token = create_refresh_token(
+            user_id=user.id,
+            organization_id=user.organization_id,
+            role=user.role,
+        )
+
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+        }

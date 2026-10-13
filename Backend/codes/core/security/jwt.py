@@ -30,6 +30,29 @@ def create_access_token(
     )
 
 
+def create_refresh_token(
+    user_id: int,
+    organization_id: int,
+    role: UserRole,
+) -> str:
+    now = datetime.now(timezone.utc)
+
+    payload = {
+        "sub": str(user_id),
+        "organization_id": organization_id,
+        "role": role.value,
+        "iat": now,
+        "exp": now + timedelta(days=settings.jwt_refresh_token_expire_days),
+        "type": "refresh",
+    }
+
+    return jwt.encode(
+        payload,
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
+
+
 def decode_access_token(token: str) -> dict:
     payload = jwt.decode(
         token,

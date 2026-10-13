@@ -48,11 +48,9 @@ def login_user(
     data: UserLoginRequest,
     db: Annotated[Session, Depends(get_db)],
 ):
-    token = CustomerAuthService(db).login(data)
+    tokens = CustomerAuthService(db).login(data)
 
-    return TokenResponse(
-        access_token=token,
-    )
+    return TokenResponse(**tokens)
 
 
 @router.get(

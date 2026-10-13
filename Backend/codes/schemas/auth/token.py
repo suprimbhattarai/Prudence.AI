@@ -5,6 +5,7 @@ from codes.core.enums.user_role import UserRole
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
 
 

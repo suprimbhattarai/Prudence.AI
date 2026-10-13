@@ -6,7 +6,6 @@ from pydantic import (
     EmailStr,
     Field,
     field_validator,
-    model_validator,
 )
 
 from codes.core.enums.user_role import UserRole
@@ -39,16 +38,10 @@ class UserRegisterRequest(BaseModel):
         UserRole.TECHNICIAN,
     ]
 
-    employee_code: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=50,
-    )
-
     @field_validator("email")
     @classmethod
     def normalize_email(cls, value: str) -> str:
-        return value.lower()
+        return str(value).strip().lower()
 
     @field_validator("full_name")
     @classmethod
@@ -60,17 +53,15 @@ class UserRegisterRequest(BaseModel):
 
         return value
 
-    @model_validator(mode="after")
-    def validate_role_fields(self):
-        if self.role == UserRole.TECHNICIAN:
-            if not self.employee_code:
-                raise ValueError("Employee code is required for technicians")
+    @field_validator("phone")
+    @classmethod
+    def normalize_phone(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
 
-        if self.role == UserRole.CUSTOMER:
-            if self.employee_code is not None:
-                raise ValueError("Customers cannot provide employee_code")
+        value = value.strip()
 
-        return self
+        return value if value else None
 
 
 class UserRegisterResponse(BaseModel):
