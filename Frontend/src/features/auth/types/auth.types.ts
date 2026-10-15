@@ -46,4 +46,6 @@ export interface AuthState {
     isAuthenticated: boolean;
     loginLoading: boolean;
     loginError: string | null;
+    authInitialized: boolean;
+    authInitializing: boolean;
 }

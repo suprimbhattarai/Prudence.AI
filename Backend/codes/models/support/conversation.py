@@ -47,6 +47,13 @@ class Conversation(Base):
         nullable=False,
     )
 
+    # Soft deletion
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
+
     customer = relationship(
         "CustomerProfile",
         back_populates="conversations",

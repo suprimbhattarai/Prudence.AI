@@ -1,5 +1,4 @@
 import {
-    createAction,
     createAsyncThunk,
     createSlice,
 } from "@reduxjs/toolkit";
@@ -20,7 +19,6 @@ import type {
     AuthUser,
 } from "../types/auth.types";
 
-
 const initialState: AuthState = {
     // Registration
     loading: false,
@@ -32,12 +30,11 @@ const initialState: AuthState = {
     isAuthenticated: false,
     loginLoading: false,
     loginError: null,
+
+    // Authentication initialization
+    authInitialized: false,
+    authInitializing: false,
 };
-
-
-// ---------------------------------------
-// Register User
-// ---------------------------------------
 
 export const registerUserThunk = createAsyncThunk<
     RegistrationResult,
@@ -62,11 +59,6 @@ export const registerUserThunk = createAsyncThunk<
     }
 );
 
-
-// ---------------------------------------
-// Login User + Fetch Current Account
-// ---------------------------------------
-
 export const loginUserThunk = createAsyncThunk<
     AuthUser,
     LoginRequest,
@@ -75,10 +67,8 @@ export const loginUserThunk = createAsyncThunk<
     "auth/login",
     async (credentials, { rejectWithValue }) => {
         try {
-            // Authenticate through FastAPI
             const loginResponse = await loginUser(credentials);
 
-            // Validate token response
             if (
                 !loginResponse.access_token ||
                 !loginResponse.refresh_token ||
@@ -87,16 +77,13 @@ export const loginUserThunk = createAsyncThunk<
                 throw new Error("Invalid authentication response.");
             }
 
-            // Store tokens in memory
             tokenStore.setTokens(
                 loginResponse.access_token,
                 loginResponse.refresh_token
             );
 
-            // Fetch authenticated user from FastAPI
             const currentUser = await getCurrentUser();
 
-            // Validate account status
             if (!currentUser.is_active) {
                 throw new Error("Your account is inactive.");
             }
@@ -107,7 +94,6 @@ export const loginUserThunk = createAsyncThunk<
 
             return currentUser;
         } catch (error) {
-            // Remove tokens if authentication fails
             tokenStore.clearTokens();
 
             return rejectWithValue(
@@ -119,17 +105,58 @@ export const loginUserThunk = createAsyncThunk<
     }
 );
 
+export const restoreSessionThunk = createAsyncThunk<
+    AuthUser | null,
+    void,
+    { rejectValue: string }
+>(
+    "auth/restoreSession",
+    async (_, { rejectWithValue }) => {
+        const accessToken = tokenStore.getAccessToken();
 
-// ---------------------------------------
-// Logout Action
-// ---------------------------------------
+        if (!accessToken) {
+            return null;
+        }
 
-export const logout = createAction("auth/logout");
+        try {
+            const currentUser = await getCurrentUser();
 
+            if (!currentUser.is_active) {
+                throw new Error("Your account is inactive.");
+            }
 
-// ---------------------------------------
-// Auth Slice
-// ---------------------------------------
+            if (!currentUser.is_verified) {
+                throw new Error("Your account is awaiting verification.");
+            }
+
+            return currentUser;
+        } catch (error) {
+            if (tokenStore.getAccessToken() === accessToken) {
+                tokenStore.clearTokens();
+            }
+
+            return rejectWithValue(
+                error instanceof Error
+                    ? error.message
+                    : "Unable to restore session"
+            );
+        }
+    },
+    {
+        condition: (_, { getState }) => {
+            const state = getState() as { auth: AuthState };
+
+            return !state.auth.authInitializing;
+        },
+    }
+);
+
+export const logout = createAsyncThunk(
+    "auth/logout",
+    async () => {
+        tokenStore.clearTokens();
+    }
+);
 
 const authSlice = createSlice({
     name: "auth",
@@ -146,14 +173,19 @@ const authSlice = createSlice({
         clearLoginError: (state) => {
             state.loginError = null;
         },
+
+        sessionInvalidated: (state) => {
+            state.user = null;
+            state.isAuthenticated = false;
+            state.authInitialized = true;
+            state.authInitializing = false;
+            state.loginLoading = false;
+            state.loginError = null;
+        },
     },
 
     extraReducers: (builder) => {
         builder
-
-            // ---------------------------------------
-            // Registration Pending
-            // ---------------------------------------
 
             .addCase(registerUserThunk.pending, (state) => {
                 state.loading = true;
@@ -161,23 +193,18 @@ const authSlice = createSlice({
                 state.error = null;
             })
 
-            // Registration Successful
             .addCase(registerUserThunk.fulfilled, (state) => {
                 state.loading = false;
                 state.success = true;
                 state.error = null;
             })
 
-            // Registration Failed
             .addCase(registerUserThunk.rejected, (state, action) => {
                 state.loading = false;
                 state.success = false;
-                state.error = action.payload ?? "Registration failed";
+                state.error =
+                    action.payload ?? "Registration failed";
             })
-
-            // ---------------------------------------
-            // Login Pending
-            // ---------------------------------------
 
             .addCase(loginUserThunk.pending, (state) => {
                 state.loginLoading = true;
@@ -186,48 +213,62 @@ const authSlice = createSlice({
                 state.isAuthenticated = false;
             })
 
-            // Login Successful
             .addCase(loginUserThunk.fulfilled, (state, action) => {
                 state.loginLoading = false;
                 state.loginError = null;
+
                 state.user = action.payload;
                 state.isAuthenticated = true;
+                state.authInitialized = true;
             })
 
-            // Login Failed
             .addCase(loginUserThunk.rejected, (state, action) => {
                 state.loginLoading = false;
-                state.loginError = action.payload ?? "Login failed";
+                state.loginError =
+                    action.payload ?? "Login failed";
+
+                state.user = null;
+                state.isAuthenticated = false;
+                state.authInitialized = true;
+            })
+
+            .addCase(restoreSessionThunk.pending, (state) => {
+                state.authInitializing = true;
+            })
+
+            .addCase(restoreSessionThunk.fulfilled, (state, action) => {
+                state.authInitializing = false;
+                state.authInitialized = true;
+
+                state.user = action.payload;
+                state.isAuthenticated = action.payload !== null;
+            })
+
+            .addCase(restoreSessionThunk.rejected, (state) => {
+                state.authInitializing = false;
+                state.authInitialized = true;
+
                 state.user = null;
                 state.isAuthenticated = false;
             })
 
-            // ---------------------------------------
-            // Logout
-            // ---------------------------------------
-
-            .addCase(logout, (state) => {
+            .addCase(logout.fulfilled, (state) => {
                 state.user = null;
                 state.isAuthenticated = false;
+
+                state.authInitialized = true;
+                state.authInitializing = false;
+
                 state.loginLoading = false;
                 state.loginError = null;
             });
     },
 });
 
-
-// ---------------------------------------
-// Export Actions
-// ---------------------------------------
-
 export const {
     resetRegistrationState,
     clearLoginError,
+    sessionInvalidated,
 } = authSlice.actions;
-
-
-// ---------------------------------------
-// Export Reducer
-// ---------------------------------------
 
 export default authSlice.reducer;

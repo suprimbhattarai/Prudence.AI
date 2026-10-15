@@ -10,6 +10,13 @@ from codes.api.organizations.organization_api import (
 from codes.api.admin.technician_verification_api import (
     router as technician_verification_router,
 )
+from codes.api.support.conversation_api import (
+    router as conversation_router,
+)
+
+from codes.api.support.message_api import (
+    router as message_router,
+)
 
 app = FastAPI(
     title="Prudence AI",
@@ -39,12 +46,12 @@ app.add_middleware(
     ],
 )
 
-
 # Register API routers
 app.include_router(organization_router)
 app.include_router(auth_router)
 app.include_router(technician_verification_router)
-
+app.include_router(conversation_router)
+app.include_router(message_router)
 
 @app.get("/")
 def read_root():
